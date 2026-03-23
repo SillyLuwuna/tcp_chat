@@ -299,6 +299,12 @@ bool Server::processEvents(int eventsReady)
 	{
 		int currFd = m_epollEventQueue[i].data.fd;
 
+		// EPOLLIN - data available to read
+		// EPOLLOUT - ready to write
+		// EPOLLERR - an error ocurred
+		// EPOLLHUP - connection closed (hangup)
+		// EPOLLRDHUP - peer shut down writing
+		// FIXME never checking for EPOLLIN or any flags, only checking for fd
 		if (currFd == m_pipeStopEvent[0]) // stop signal
 		{
 			std::cout << "epoll: pipe stop event detected!" << std::endl;
@@ -314,6 +320,7 @@ bool Server::processEvents(int eventsReady)
 		}
 
 		// received message
+		// FIXME or it received a FIN/disconnection
 		std::cout << "epoll: socket data received event detected!" << std::endl;
 		receiveMessage(currFd);
 	}
@@ -327,12 +334,12 @@ void Server::consumePipeStopEvent()
 }
 
 // THREADING: CRITICAL SECTION
-void Server::acceptConnection()
+void Server::acceptConnection() // FIXME never adds the fd/event to the epoll instance?
 {
 	// client addr
 	std::unique_ptr<struct sockaddr_in> clientAddr(new struct sockaddr_in);
 	int clientFd = accept(m_sockfd, *(clientAddr.get()));
-	if (clientFd < 0)
+	if (clientFd < 0) // FIXME this never happens because an exception is thrown inside accept, catch it?
 	{
 		std::cout << "Error on accepting connection." << std::endl;
 		return;
@@ -341,7 +348,7 @@ void Server::acceptConnection()
 
 	// client event
 	std::unique_ptr<struct epoll_event> clientEvent(new struct epoll_event);
-	clientEvent->events = EPOLLIN;
+	clientEvent->events = EPOLLIN; // FIXME don't I need to monitor more events in case there's a disconnection?
 	clientEvent->data.fd = clientFd;
 
 	// save to hashmap
@@ -374,7 +381,7 @@ int Server::makeSocket()
 
 void Server::bind(int sockfd, sockaddr_in address)
 {
-	int status = ::bind(sockfd, (sockaddr *)&address, sizeof(m_address));
+	int status = ::bind(sockfd, (sockaddr *)&address, sizeof(m_address)); // FIXME sizeof(m_address?!?!?!?!)
 	if (status < 0)
 		throw NetworkError("Could not bind to socket");
 	std::cout << "Server: socket binded" << std::endl;
